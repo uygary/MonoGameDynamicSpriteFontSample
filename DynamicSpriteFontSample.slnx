@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/external/" />
+  <Folder Name="/external/MonoGame/" />
+  <Folder Name="/external/MonoGame/MonoGame.Framework/">
+    <Project Path="external/MonoGame/MonoGame.Framework/MonoGame.Framework.Native.csproj" />
+  </Folder>
+  <Folder Name="/sample/">
+    <Project Path="sample/DynamicSpriteFontSample.Core/DynamicSpriteFontSample.Core.csproj" />
+    <Project Path="sample/DynamicSpriteFontSample.WindowsDX12/DynamicSpriteFontSample.WindowsDX12.csproj" />
+    <Project Path="sample/DynamicSpriteFontSample.Vulkan/DynamicSpriteFontSample.Vulkan.csproj" />
+  </Folder>
+</Solution>

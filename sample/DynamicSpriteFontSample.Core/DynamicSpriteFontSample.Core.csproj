@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\external\MonoGame\MonoGame.Framework\MonoGame.Framework.Native.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Content\JetBrainsMono-Regular.ttf"
+          Link="Content\JetBrainsMono-Regular.ttf"
+          CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>
