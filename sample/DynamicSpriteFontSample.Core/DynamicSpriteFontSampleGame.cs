@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
@@ -20,17 +21,19 @@ public sealed class DynamicSpriteFontSampleGame : Game
 
     private SpriteBatch _spriteBatch;
     private DynamicSpriteFont _fontFromFile;
-    private DynamicSpriteFont _fontFromStream;
+    private string _asciiString;
+    private bool _reloadFont;
+    private KeyboardState _currentKeyboardState;
+    private KeyboardState _previousKeyboardState;
 
     public DynamicSpriteFontSampleGame()
     {
         _graphics = new GraphicsDeviceManager(this);
-        _graphics.PreferredBackBufferWidth = 960;
-        _graphics.PreferredBackBufferHeight = 540;
+        _graphics.PreferredBackBufferWidth = 1280;
+        _graphics.PreferredBackBufferHeight = 800;
 
         _spriteBatch = null!;
         _fontFromFile = null!;
-        _fontFromStream = null!;
 
         IsMouseVisible = true;
         Window.Title = "DynamicSpriteFont Sample";
@@ -40,25 +43,12 @@ public sealed class DynamicSpriteFontSampleGame : Game
     {
         _spriteBatch = new SpriteBatch(GraphicsDevice);
 
-        // ------------------------------------------------------------------------------
-        // Load at runtime with FromFile
-        //
-        string fromFilePath = Path.Combine(AppContext.BaseDirectory, "Content", "JetBrainsMono-Regular.ttf");
-        _fontFromFile = DynamicSpriteFont.FromFile(GraphicsDevice, fromFilePath, 32.0f);
-
-
-        // ------------------------------------------------------------------------------
-        // Load at runtime with FromStream using TitleContainer
-        //
-        string streamPath = Path.Combine("Content", "JetBrainsMono-Regular.ttf");
-        using Stream stream = TitleContainer.OpenStream(streamPath);
-        _fontFromStream = DynamicSpriteFont.FromStream(GraphicsDevice, stream, 32.0f);
-
+        LoadFont();
+        _asciiString = GenerateAsciiString();
     }
 
     protected override void UnloadContent()
     {
-        _fontFromStream.Dispose();
         _fontFromFile.Dispose();
         _spriteBatch.Dispose();
 
@@ -67,11 +57,24 @@ public sealed class DynamicSpriteFontSampleGame : Game
 
     protected override void Update(GameTime gameTime)
     {
-        KeyboardState keyboardState = Keyboard.GetState();
-        if (keyboardState.IsKeyDown(Keys.Escape) || GamePad.GetState(PlayerIndex.One).Buttons.Back == ButtonState.Pressed)
+        _currentKeyboardState = Keyboard.GetState();
+        if (_currentKeyboardState.IsKeyDown(Keys.Escape) || GamePad.GetState(PlayerIndex.One).Buttons.Back == ButtonState.Pressed)
         {
             Exit();
         }
+
+        if (_currentKeyboardState.IsKeyDown(Keys.Space) && _previousKeyboardState.IsKeyUp(Keys.Space))
+        {
+            _reloadFont = !_reloadFont;
+        }
+
+        if (_reloadFont)
+        {
+            // We create a new font each frame to start with a new texture atlas.
+            LoadFont();
+        }
+
+        _previousKeyboardState = _currentKeyboardState;
 
         base.Update(gameTime);
     }
@@ -84,30 +87,68 @@ public sealed class DynamicSpriteFontSampleGame : Game
 
         _spriteBatch.Begin();
 
-        // ------------------------------------------------------------------------------
-        // Drawing text using the font that was loaded from DynamicSpriteFont.FromFile
-        //
-        _spriteBatch.DrawString(_fontFromFile, "Loaded from file", new Vector2(40.0f, 40.0f), Color.White);
+        // We start with a small texture atlas.
+        _spriteBatch.DrawString(_fontFromFile, "Small texture atlas: This line will bork out on rebuild.", new Vector2(40, 40), Color.Yellow);
 
-        // ------------------------------------------------------------------------------
-        // Drawing text using the font that was loaded from DynamicSpriteFont.FromFile
-        //
-        _spriteBatch.DrawString(_fontFromStream, "Loaded from stream", new Vector2(40.0f, 150.0f), Color.White);
+        var textureBeforeRebuild = _fontFromFile.GetTexture(0);
 
-        // ------------------------------------------------------------------------------
-        // Drawing text using different font sizes
-        //
+        // Much larger atlas is required for all the visible ASCII characters.
+        _spriteBatch.DrawString(_fontFromFile, _asciiString, new Vector2(40, 280), Color.White);
+
+        _spriteBatch.DrawString(_fontFromFile, "Large texture atlas: These lines will be drawn after rebuild.", new Vector2(40, 240), Color.White);
+
+        var textureAfterRebuild = _fontFromFile.GetTexture(0);
+        
+        var isTextureAtlasRebuilt = textureBeforeRebuild != textureAfterRebuild;
+        var isOldTextureDisposed = textureBeforeRebuild.IsDisposed;
+
+        _spriteBatch.DrawString(_fontFromFile, "Everything after rebuild works fine.", new Vector2(40, 360), Color.White);
+
+        _spriteBatch.DrawString(_fontFromFile, "Press SPACE to flip texture atlas rebuild on every frame.", new Vector2(40, 600), Color.Yellow);
+
         _fontFromFile.Size = 16.0f;
-        _spriteBatch.DrawString(_fontFromFile, "Small text (16px)", new Vector2(40.0f, 314.0f), Color.White);
+        var atlasRebuildMessageColor = isTextureAtlasRebuilt
+            ? Color.Red
+            : Color.LimeGreen;
+        var atlasSizeMessageColor = isTextureAtlasRebuilt
+            ? Color.MonoGameOrange
+            : Color.LimeGreen;
 
-        _fontFromFile.Size = 32.0f;
-        _spriteBatch.DrawString(_fontFromFile, "Medium text (32px)", new Vector2(40.0f, 354.0f), Color.White);
+        if (isTextureAtlasRebuilt)
+        {
+            var newAtlasSizeMessage = $"New size: {textureAfterRebuild.Width}x{textureAfterRebuild.Height}";
+            _spriteBatch.DrawString(_fontFromFile, newAtlasSizeMessage, new Vector2(40, 720), atlasSizeMessageColor);
+        }
 
-        _fontFromFile.Size = 52.0f;
-        _spriteBatch.DrawString(_fontFromFile, "Large text (52px)", new Vector2(40.0f, 408.0f), Color.White);
+        var oldAtlasSizeMessage = $"Old size: {textureBeforeRebuild.Width}x{textureBeforeRebuild.Height} (IsDisposed={isOldTextureDisposed})";
+        _spriteBatch.DrawString(_fontFromFile, oldAtlasSizeMessage, new Vector2(40, 740), atlasSizeMessageColor);
+
+        var atlasRebuildMessage = isTextureAtlasRebuilt
+            ? "Texture atlas is rebuilt."
+            : "No rebuild.";
+        _spriteBatch.DrawString(_fontFromFile, atlasRebuildMessage, new Vector2(40, 760), atlasRebuildMessageColor);
 
         _spriteBatch.End();
 
         base.Draw(gameTime);
     }
+
+    private void LoadFont()
+    {
+        _fontFromFile?.Dispose();
+
+        string fromFilePath = Path.Combine(AppContext.BaseDirectory, "Content", "JetBrainsMono-Regular.ttf");
+        _fontFromFile = DynamicSpriteFont.FromFile(GraphicsDevice, fromFilePath, 32.0f);
+    }
+
+    private string GenerateAsciiString()
+    {
+        var asciiCharacters = Enumerable.Range(0, 255)
+            .Select(i => (char)i)
+            .Where(c => !char.IsControl(c))
+            .ToArray();
+
+        return string.Join(string.Empty, asciiCharacters);
+    }
 }
+
